@@ -1,36 +1,20 @@
-import { MongoClient } from "mongodb";
+import mongoose from "mongoose";
 
-const uri = process.env.MONGODB_URI;
-const dbName = "flood_risk_db";
-
-if (!uri) {
-  throw new Error("MONGODB_URI is missing in .env");
-}
-
-const client = new MongoClient(uri);
-
-let db;
-
-export async function connectDB() {
+const connectDB = async () => {
   try {
-    await client.connect();
+    const mongoUri = process.env.MONGO_URI;
 
-    db = client.db(dbName);
+    if (!mongoUri) {
+      throw new Error("MONGO_URI is not defined in .env");
+    }
 
-    console.log("✅ Backend connected to MongoDB");
+    await mongoose.connect(mongoUri);
 
-    return db;
+    console.log("MongoDB connected successfully");
   } catch (error) {
-    console.error("❌ MongoDB connection failed:");
-    console.error(error);
+    console.error("MongoDB connection failed:", error.message);
     throw error;
   }
-}
+};
 
-export function getDB() {
-  if (!db) {
-    throw new Error("Database is not connected");
-  }
-
-  return db;
-}
+export default connectDB;
