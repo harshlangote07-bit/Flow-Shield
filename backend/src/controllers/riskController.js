@@ -1,64 +1,113 @@
-// src/controllers/riskController.js
+import {
+    calculateAreaRisk,
+    getLatestAreaRisk,
+    getAreaRiskHistory,
+    getAllAreaRisks
+} from "../services/riskService.js";
 
-import { calculateFloodRisk } from "../engine/floodRiskEngine.js";
-import { validateEngineInput } from "../engine/validateEngineInput.js";
-
-export function calculateAreaRisk(req, res) {
-
+export async function calculateRisk(req, res) {
     try {
+        const { areaId } = req.params;
 
-        const data = req.body;
-
-        // 1. Validate input
-
-        const validation =
-            validateEngineInput(data);
-
-        if (!validation.valid) {
-
+        if (!areaId) {
             return res.status(400).json({
                 success: false,
-                message: "Invalid flood-risk input.",
-                errors: validation.errors,
-                warnings: validation.warnings
+                message: "Area ID is required."
             });
         }
 
-
-        // 2. Calculate flood risk
-
-        const result =
-            calculateFloodRisk(data);
-
-
-        // 3. Return result
+        const result = await calculateAreaRisk(areaId);
 
         return res.status(200).json({
-
             success: true,
-
-            data: result,
-
-            warnings:
-                validation.warnings
+            data: result
         });
-
     } catch (error) {
+        console.error("Risk calculation error:", error);
 
-        console.error(
-            "Flood risk calculation error:",
-            error
-        );
-
-        return res.status(500).json({
-
+        return res.status(error.statusCode || 500).json({
             success: false,
+            message: error.message || "Failed to calculate flood risk."
+        });
+    }
+}
 
-            message:
-                "Failed to calculate flood risk.",
+export async function getLatestRisk(req, res) {
+    try {
+        const { areaId } = req.params;
 
-            error:
-                error.message
+        if (!areaId) {
+            return res.status(400).json({
+                success: false,
+                message: "Area ID is required."
+            });
+        }
+
+        const result = await getLatestAreaRisk(areaId);
+
+        if (!result) {
+            return res.status(404).json({
+                success: false,
+                message: "No risk assessment found for this area."
+            });
+        }
+
+        return res.status(200).json({
+            success: true,
+            data: result
+        });
+    } catch (error) {
+        console.error("Latest risk error:", error);
+
+        return res.status(error.statusCode || 500).json({
+            success: false,
+            message: error.message || "Failed to fetch risk."
+        });
+    }
+}
+
+export async function getRiskHistory(req, res) {
+    try {
+        const { areaId } = req.params;
+        const limit = Number(req.query.limit) || 50;
+
+        if (!areaId) {
+            return res.status(400).json({
+                success: false,
+                message: "Area ID is required."
+            });
+        }
+
+        const result = await getAreaRiskHistory(areaId, limit);
+
+        return res.status(200).json({
+            success: true,
+            data: result
+        });
+    } catch (error) {
+        console.error("Risk history error:", error);
+
+        return res.status(error.statusCode || 500).json({
+            success: false,
+            message: error.message || "Failed to fetch risk history."
+        });
+    }
+}
+
+export async function getAllRisks(req, res) {
+    try {
+        const result = await getAllAreaRisks();
+
+        return res.status(200).json({
+            success: true,
+            data: result
+        });
+    } catch (error) {
+        console.error("All risks error:", error);
+
+        return res.status(error.statusCode || 500).json({
+            success: false,
+            message: error.message || "Failed to fetch area risks."
         });
     }
 }
