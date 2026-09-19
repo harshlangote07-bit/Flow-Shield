@@ -1,0 +1,9 @@
+{
+  "name": "flood-risk-engine",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "src/testEngine.js",
+  "scripts": {
+    "test-engine": "node src/testEngine.js"
+  }
+}
