@@ -251,6 +251,14 @@ function BackendAreaLayer({
   const areaId =
     area?.areaId;
 
+    const population = Number(
+  area?.population || 0
+);
+
+const populationExposed = Number(
+  area?.populationExposed || 0
+);
+
   const selected =
     selectedId === areaId;
 
@@ -333,6 +341,21 @@ function BackendAreaLayer({
             </strong>
           </div>
 
+          <div>
+  Estimated population:
+  <strong>
+    {" "}
+    {population.toLocaleString("en-IN")}
+  </strong>
+</div>
+<div>
+  Estimated exposed:
+  <strong>
+    {" "}
+    {populationExposed.toLocaleString("en-IN")}
+  </strong>
+</div>
+
           <div
             style={{
               marginTop: 7,
@@ -340,7 +363,7 @@ function BackendAreaLayer({
               color: "#60767b",
             }}
           >
-            Live Flow Shield backend area
+            Estimated exposure based on current risk
           </div>
         </div>
       </Popup>

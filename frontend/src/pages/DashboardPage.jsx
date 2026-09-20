@@ -20,6 +20,19 @@ import {
   getAlerts,
 } from "../services/api";
 
+const PRODUCTION_AREA_IDS = new Set([
+  "malleshwaram",
+  "rajajinagar",
+  "vijayanagar",
+  "majestic",
+  "shivajinagar",
+  "chikkapete",
+  "chamarajpet",
+  "basavanagudi",
+  "banashankari",
+  "jayanagar",
+]);
+
 /* =========================================================
    HELPERS
 ========================================================= */
@@ -113,6 +126,14 @@ export default function DashboardPage({ setSelectedZone }) {
         setRisks(riskResponse?.data || []);
         setAreas(areaResponse?.data || []);
         setAlerts(alertResponse?.data || []);
+        console.log(
+  "Population data:",
+  (areaResponse?.data || []).map((area) => ({
+    areaId: area.areaId,
+    name: area.name,
+    population: area.population,
+  }))
+);
       } catch (err) {
         if (!cancelled) {
           setError(err.message || "Unable to load dashboard data.");
@@ -155,18 +176,25 @@ export default function DashboardPage({ setSelectedZone }) {
    * returned by the backend.
    */
 
-  const cityRisk = useMemo(() => {
-    if (risks.length === 0) {
-      return 0;
-    }
+  const productionRisks = useMemo(() => {
+  return risks.filter((item) =>
+    PRODUCTION_AREA_IDS.has(item.areaId)
+  );
+}, [risks]);
 
-    const total = risks.reduce(
-      (sum, item) => sum + Number(item?.risk?.score || 0),
-      0
-    );
+const cityRisk = useMemo(() => {
+  if (productionRisks.length === 0) {
+    return 0;
+  }
 
-    return total / risks.length;
-  }, [risks]);
+  const total = productionRisks.reduce(
+    (sum, item) =>
+      sum + Number(item?.risk?.score || 0),
+    0
+  );
+
+  return total / productionRisks.length;
+}, [productionRisks]);
 
   /*
    * Priority zones.
@@ -175,14 +203,14 @@ export default function DashboardPage({ setSelectedZone }) {
    */
 
   const priorityZones = useMemo(() => {
-    return [...risks]
+    return [...productionRisks]
       .sort(
         (a, b) =>
           Number(b?.risk?.score || 0) -
           Number(a?.risk?.score || 0)
       )
       .slice(0, 3);
-  }, [risks]);
+  }, [productionRisks]);
 
   /*
    * Latest alerts.
@@ -203,6 +231,42 @@ export default function DashboardPage({ setSelectedZone }) {
       })
       .slice(0, 3);
   }, [alerts]);
+
+  const liveAreas = useMemo(() => {
+  const riskByArea = new Map(
+    risks.map((item) => [
+      item.areaId,
+      item,
+    ])
+  );
+
+  return areas
+    .filter(
+      (area) =>
+        area.isActive &&
+        area.areaId !== "AREA_TEST_001"
+    )
+    .map((area) => {
+      const riskItem =
+        riskByArea.get(area.areaId);
+
+      return {
+        ...area,
+        population: Number(
+          area.population || 0
+        ),
+        riskScore: Number(
+          riskItem?.risk?.score || 0
+        ),
+        populationExposed: Math.round(
+  Number(area.population || 0) *
+  (Number(riskItem?.risk?.score || 0) / 100)
+),
+        riskLevel:
+          riskItem?.risk?.level || "LOW",
+      };
+    });
+}, [areas, risks]);
 
   const selectZone = (id) => {
     setSelected(id);
@@ -265,13 +329,23 @@ export default function DashboardPage({ setSelectedZone }) {
           </div>
 
           <div className="metric-value">
-            {loading ? "—" : areas.length}
+            {loading
+  ? "—"
+  : areas.filter((area) =>
+      PRODUCTION_AREA_IDS.has(area.areaId)
+    ).length}
           </div>
 
           <div className="metric-trend">
             {loading
               ? "Loading areas"
-              : `${areas.filter((area) => area.isActive).length} active feeds`}
+              : `${
+  areas.filter(
+    (area) =>
+      area.isActive &&
+      PRODUCTION_AREA_IDS.has(area.areaId)
+  ).length
+} active feeds`}
           </div>
         </div>
 
@@ -322,10 +396,11 @@ export default function DashboardPage({ setSelectedZone }) {
       <section className="dashboard-grid section-gap">
         <div className="panel risk-map">
           <MapCanvas
-            compact
-            selectedId={selected}
-            onSelect={selectZone}
-          />
+  compact
+  selectedId={selected}
+  onSelect={selectZone}
+  backendAreas={liveAreas}
+/>
         </div>
 
         <div className="panel">
