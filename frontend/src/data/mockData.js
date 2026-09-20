@@ -1,0 +1,127 @@
+export const ZONES = [
+  {
+    id: "harbor",
+    name: "Harbor East",
+    short: "Harbor",
+    risk: "high",
+    score: 82,
+    x: "32%",
+    y: "32%",
+    trend: "+14 pts",
+    subtitle: "Low-lying waterfront",
+    rainfall: "58 mm / 3h",
+    level: "2.4 m",
+  },
+  {
+    id: "market",
+    name: "Old Market",
+    short: "Market",
+    risk: "medium",
+    score: 64,
+    x: "62%",
+    y: "44%",
+    trend: "+8 pts",
+    subtitle: "Historic basin",
+    rainfall: "42 mm / 3h",
+    level: "1.7 m",
+  },
+  {
+    id: "north",
+    name: "Northbank",
+    short: "Northbank",
+    risk: "low",
+    score: 31,
+    x: "75%",
+    y: "22%",
+    trend: "-3 pts",
+    subtitle: "Elevated district",
+    rainfall: "28 mm / 3h",
+    level: "0.8 m",
+  },
+  {
+    id: "junction",
+    name: "Canal Junction",
+    short: "Junction",
+    risk: "high",
+    score: 76,
+    x: "49%",
+    y: "72%",
+    trend: "+11 pts",
+    subtitle: "Constricted channel",
+    rainfall: "51 mm / 3h",
+    level: "2.1 m",
+  },
+];
+
+export const ALERTS = [
+  {
+    id: "a1",
+    severity: "high",
+    title: "Harbor East threshold exceeded",
+    body: "Gauge FE-04 is 18 cm above the amber trigger and rising.",
+    time: "8 min ago",
+    zone: "Harbor East",
+    action: "Dispatch drainage crew to Pier 4 access.",
+  },
+  {
+    id: "a2",
+    severity: "medium",
+    title: "Rainfall band moving inland",
+    body: "Forecast cell is tracking toward Old Market within 90 minutes.",
+    time: "26 min ago",
+    zone: "Old Market",
+    action: "Stage pumps at Market Street underpass.",
+  },
+  {
+    id: "a3",
+    severity: "low",
+    title: "Northbank risk easing",
+    body: "River level projection revised down after upstream reading.",
+    time: "44 min ago",
+    zone: "Northbank",
+    action: "Keep routine patrol; no escalation required.",
+  },
+];
+
+export const TREND_DATA = [
+  { time: "06:00", harbor: 39, market: 26, junction: 34 },
+  { time: "08:00", harbor: 45, market: 31, junction: 41 },
+  { time: "10:00", harbor: 52, market: 38, junction: 48 },
+  { time: "12:00", harbor: 61, market: 45, junction: 57 },
+  { time: "14:00", harbor: 72, market: 54, junction: 66 },
+  { time: "16:00", harbor: 82, market: 64, junction: 76 },
+  { time: "18:00", harbor: 88, market: 72, junction: 83 },
+];
+
+export const NAV = [
+  {
+    href: "/",
+    label: "Command center",
+    icon: "CircleGauge",
+  },
+  {
+    href: "/map",
+    label: "Risk map",
+    icon: "Map",
+  },
+  {
+    href: "/analysis",
+    label: "Risk analysis",
+    icon: "SlidersHorizontal",
+  },
+  {
+    href: "/drainage",
+    label: "Drainage watch",
+    icon: "Droplets",
+  },
+  {
+    href: "/alerts",
+    label: "Alerts & forecast",
+    icon: "Bell",
+  },
+  {
+    href: "/official",
+    label: "Official portal",
+    icon: "ShieldCheck",
+  },
+];
