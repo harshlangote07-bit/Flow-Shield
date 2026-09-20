@@ -259,3 +259,102 @@ export async function updateDrainageAsset(assetId, data, user) {
 
     return asset;
 }
+
+export async function createPublicDrainageReport(
+    areaId,
+    data
+) {
+    const area = await findArea(areaId);
+
+    const description =
+        String(data.description || "").trim();
+
+    if (!description) {
+        const error = new Error(
+            "Report description is required."
+        );
+        error.statusCode = 400;
+        throw error;
+    }
+
+    const severity = String(
+        data.severity || "moderate"
+    ).toLowerCase();
+
+    const allowedSeverities = [
+        "low",
+        "moderate",
+        "high",
+        "critical"
+    ];
+
+    if (!allowedSeverities.includes(severity)) {
+        const error = new Error(
+            "Invalid report severity."
+        );
+        error.statusCode = 400;
+        throw error;
+    }
+
+    let blockagePercent = null;
+
+    if (
+        data.blockagePercent !== undefined &&
+        data.blockagePercent !== null &&
+        data.blockagePercent !== ""
+    ) {
+        blockagePercent =
+            Number(data.blockagePercent);
+
+        if (
+            Number.isNaN(blockagePercent) ||
+            blockagePercent < 0 ||
+            blockagePercent > 100
+        ) {
+            const error = new Error(
+                "Blockage percentage must be between 0 and 100."
+            );
+            error.statusCode = 400;
+            throw error;
+        }
+    }
+
+    const asset = await DrainageAsset.findOne({
+        areaId: area._id,
+        isActive: true
+    })
+        .sort({ isTrunk: -1 })
+        .select("_id")
+        .lean();
+
+    const report = await DrainageReport.create({
+        reportId: `PUB-${Date.now()}-${Math.floor(
+            Math.random() * 10000
+        )}`,
+
+        areaId: area._id,
+
+        drainageAssetId:
+            asset?._id || null,
+
+        reportedBy: null,
+
+        blockagePercent,
+
+        severity,
+
+        description,
+
+        reportedAt: new Date(),
+
+        verified: false,
+
+        status: "reported"
+    });
+
+    return {
+        ...report.toObject(),
+        areaName: area.name,
+        source: "public"
+    };
+}

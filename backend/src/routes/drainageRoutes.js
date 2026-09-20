@@ -4,7 +4,8 @@ import {
   getDrainage,
   getDrainageRisk,
   getReports,
-  updateAsset
+  updateAsset,
+  createPublicReport
 } from "../controllers/drainageController.js";
 
 import {
@@ -19,6 +20,11 @@ router.get("/:areaId", getDrainage);
 router.get("/:areaId/risk", getDrainageRisk);
 
 router.get("/:areaId/reports", getReports);
+
+router.post(
+  "/:areaId/reports",
+  createPublicReport
+);
 
 router.patch(
   "/assets/:assetId",

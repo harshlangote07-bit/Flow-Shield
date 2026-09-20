@@ -6,8 +6,7 @@ const drainageReportSchema = new mongoose.Schema(
             type: String,
             required: true,
             unique: true,
-            index: true,
-            trim: true
+            index: true
         },
 
         areaId: {
@@ -20,31 +19,42 @@ const drainageReportSchema = new mongoose.Schema(
         drainageAssetId: {
             type: mongoose.Schema.Types.ObjectId,
             ref: "DrainageAsset",
-            required: true,
+            required: false,
+            default: null,
             index: true
         },
 
+        // Public users do not need an account.
+        // Official reports can still store the user ID.
         reportedBy: {
             type: mongoose.Schema.Types.ObjectId,
             ref: "User",
-            required: true
+            required: false,
+            default: null
         },
 
         blockagePercent: {
             type: Number,
             min: 0,
-            max: 100
+            max: 100,
+            default: null
         },
 
         severity: {
             type: String,
-            enum: ["low", "moderate", "high", "critical"],
+            enum: [
+                "low",
+                "moderate",
+                "high",
+                "critical"
+            ],
             required: true
         },
 
         description: {
             type: String,
-            trim: true
+            trim: true,
+            required: true
         },
 
         reportedAt: {
@@ -62,19 +72,20 @@ const drainageReportSchema = new mongoose.Schema(
             ref: "User"
         },
 
-        verifiedAt: {
-            type: Date
-        },
+        verifiedAt: Date,
 
         status: {
             type: String,
-            enum: ["reported", "verified", "resolved", "rejected"],
+            enum: [
+                "reported",
+                "verified",
+                "resolved",
+                "rejected"
+            ],
             default: "reported"
         },
 
-        resolvedAt: {
-            type: Date
-        }
+        resolvedAt: Date
     },
     {
         timestamps: true,
@@ -82,4 +93,7 @@ const drainageReportSchema = new mongoose.Schema(
     }
 );
 
-export default mongoose.model("DrainageReport", drainageReportSchema);
+export default mongoose.model(
+    "DrainageReport",
+    drainageReportSchema
+);
