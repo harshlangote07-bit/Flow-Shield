@@ -1,7 +1,13 @@
 import { useState } from "react";
-import { RefreshCw, ShieldCheck } from "lucide-react";
+
+import {
+  RefreshCw,
+  ShieldCheck,
+} from "lucide-react";
+
 import { useLocation } from "wouter";
 
+import { loginOfficial } from "../services/api";
 
 /* =========================================================
    OFFICIAL LOGIN
@@ -10,52 +16,69 @@ import { useLocation } from "wouter";
 export default function OfficialLogin({ onLogin }) {
   const [, setLocation] = useLocation();
 
-  const [officialId, setOfficialId] = useState("");
+  const [email, setEmail] = useState(
+    "official@flowshield.com",
+  );
 
-  const [password, setPassword] = useState("");
+  const [password, setPassword] =
+    useState("");
 
   const [error, setError] = useState("");
 
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] =
+    useState(false);
 
-  const handleSubmit = (event) => {
+  const handleSubmit = async (event) => {
     event.preventDefault();
 
     setError("");
     setLoading(true);
 
-    /*
-     * TEMPORARY FRONTEND DEMO AUTHENTICATION
-     *
-     * We will replace this with:
-     *
-     * POST /api/auth/login
-     *
-     * after the frontend flow is working.
-     */
+    try {
+      const response =
+        await loginOfficial(
+          email,
+          password,
+        );
 
-    window.setTimeout(() => {
-      if (officialId === "OFF-001" && password === "FloodGuard123") {
-        const user = {
-          id: "OFF-001",
-          name: "Mara Chen",
-          role: "Duty coordinator",
-          department: "City emergency management",
-        };
+      const token = response?.token;
+      const user = response?.user;
 
-        onLogin(user);
-
-        setLoading(false);
-
-        setLocation("/official");
-
-        return;
+      if (!token || !user) {
+        throw new Error(
+          "Login response did not contain a valid official session.",
+        );
       }
 
-      setLoading(false);
+      localStorage.setItem(
+        "flowshield_official_token",
+        token,
+      );
 
-      setError("Invalid official ID or password.");
-    }, 500);
+      localStorage.setItem(
+        "flowshield_official_user",
+        JSON.stringify(user),
+      );
+
+      onLogin({
+        ...user,
+        token,
+      });
+
+      setLocation("/official");
+    } catch (requestError) {
+      console.error(
+        "Official login error:",
+        requestError,
+      );
+
+      setError(
+        requestError?.message ||
+          "Invalid email or password.",
+      );
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -69,44 +92,63 @@ export default function OfficialLogin({ onLogin }) {
         <div className="panel">
           <div className="panel-header">
             <div>
-              <div className="panel-kicker">Authorized access</div>
+              <div className="panel-kicker">
+                Authorized access
+              </div>
 
               <h2>Official sign in</h2>
             </div>
 
-            <ShieldCheck size={22} color="var(--teal)" />
+            <ShieldCheck
+              size={22}
+              color="var(--teal)"
+            />
           </div>
 
           <p className="subtitle">
-            Sign in with your authorized FloodGuard official account to access
-            the official portal.
+            Sign in with your authorized Flow Shield
+            official account to access the operational
+            portal.
           </p>
 
-          <form className="form-stack" onSubmit={handleSubmit}>
+          <form
+            className="form-stack"
+            onSubmit={handleSubmit}
+          >
             <div className="field">
-              <label htmlFor="official-login-id">Official ID</label>
+              <label htmlFor="official-login-email">
+                Official email
+              </label>
 
               <input
-                id="official-login-id"
+                id="official-login-email"
                 className="text-input"
-                type="text"
-                value={officialId}
-                onChange={(event) => setOfficialId(event.target.value)}
-                placeholder="Enter official ID"
+                type="email"
+                value={email}
+                onChange={(event) =>
+                  setEmail(event.target.value)
+                }
+                placeholder="official@flowshield.com"
                 autoComplete="username"
                 required
               />
             </div>
 
             <div className="field">
-              <label htmlFor="official-login-password">Password</label>
+              <label htmlFor="official-login-password">
+                Password
+              </label>
 
               <input
                 id="official-login-password"
                 className="text-input"
                 type="password"
                 value={password}
-                onChange={(event) => setPassword(event.target.value)}
+                onChange={(event) =>
+                  setPassword(
+                    event.target.value,
+                  )
+                }
                 placeholder="Enter password"
                 autoComplete="current-password"
                 required
@@ -115,7 +157,9 @@ export default function OfficialLogin({ onLogin }) {
 
             {error && (
               <div className="recommendation">
-                <strong>Sign in failed</strong>
+                <strong>
+                  Sign in failed
+                </strong>
 
                 <p>{error}</p>
               </div>
@@ -128,7 +172,10 @@ export default function OfficialLogin({ onLogin }) {
             >
               {loading ? (
                 <>
-                  <RefreshCw size={14} className="spin" />
+                  <RefreshCw
+                    size={14}
+                    className="spin"
+                  />
                   Signing in...
                 </>
               ) : (
@@ -139,7 +186,9 @@ export default function OfficialLogin({ onLogin }) {
               )}
             </button>
 
-            <div className="form-help">Authorized officials only.</div>
+            <div className="form-help">
+              Authorized officials only.
+            </div>
           </form>
         </div>
       </div>

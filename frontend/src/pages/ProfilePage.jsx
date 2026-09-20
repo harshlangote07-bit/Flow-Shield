@@ -11,19 +11,48 @@ export default function ProfilePage({ officialUser }) {
     return null;
   }
 
-  const initials = officialUser.name
-    ?.split(" ")
-    .map((part) => part[0])
-    .join("")
-    .slice(0, 2)
-    .toUpperCase();
+  const displayName =
+    officialUser.name ||
+    officialUser.email ||
+    "Official";
+
+  const initials =
+    displayName
+      .split(" ")
+      .map((part) => part[0])
+      .join("")
+      .slice(0, 2)
+      .toUpperCase();
+
+  const officialId =
+    officialUser.userId ||
+    officialUser.id ||
+    "Not available";
+
+  const role =
+    officialUser.role || "Official";
+
+  const department =
+    officialUser.department ||
+    "Not specified";
+
+  const email =
+    officialUser.email ||
+    "Not available";
+
+  const assignedAreas =
+    Array.isArray(
+      officialUser.assignedAreas,
+    )
+      ? officialUser.assignedAreas
+      : [];
 
   return (
     <div className="page">
       <PageHeading
         eyebrow="Account"
         title="Official profile"
-        subtitle="Authenticated FloodGuard official account details."
+        subtitle="Authenticated Flow Shield official account details."
         action={
           <div className="risk-chip low">
             <ShieldCheck size={12} />
@@ -38,6 +67,10 @@ export default function ProfilePage({ officialUser }) {
         }}
       >
         <div className="panel">
+          {/* =================================================
+              IDENTITY
+          ================================================= */}
+
           <div
             style={{
               display: "flex",
@@ -58,14 +91,16 @@ export default function ProfilePage({ officialUser }) {
             </div>
 
             <div>
-              <div className="panel-kicker">Official account</div>
+              <div className="panel-kicker">
+                Official account
+              </div>
 
               <h2
                 style={{
                   marginBottom: "4px",
                 }}
               >
-                {officialUser.name}
+                {displayName}
               </h2>
 
               <p
@@ -74,30 +109,52 @@ export default function ProfilePage({ officialUser }) {
                   margin: 0,
                 }}
               >
-                {officialUser.role}
+                {role}
               </p>
             </div>
           </div>
+
+          {/* =================================================
+              ACCOUNT DETAILS
+          ================================================= */}
 
           <div className="form-grid">
             <div className="field">
               <label>Official ID</label>
 
-              <div className="text-input">{officialUser.id}</div>
+              <div className="text-input">
+                {officialId}
+              </div>
             </div>
 
             <div className="field">
               <label>Role</label>
 
-              <div className="text-input">{officialUser.role}</div>
+              <div className="text-input">
+                {role}
+              </div>
             </div>
 
-            <div className="field full">
+            <div className="field">
+              <label>Email</label>
+
+              <div className="text-input">
+                {email}
+              </div>
+            </div>
+
+            <div className="field">
               <label>Department</label>
 
-              <div className="text-input">{officialUser.department}</div>
+              <div className="text-input">
+                {department}
+              </div>
             </div>
           </div>
+
+          {/* =================================================
+              ASSIGNED AREAS
+          ================================================= */}
 
           <div
             className="recommendation"
@@ -105,11 +162,57 @@ export default function ProfilePage({ officialUser }) {
               marginTop: "22px",
             }}
           >
-            <strong>Authority scope</strong>
+            <strong>
+              Assigned areas
+            </strong>
+
+            {assignedAreas.length > 0 ? (
+              <div
+                style={{
+                  display: "flex",
+                  flexWrap: "wrap",
+                  gap: "8px",
+                  marginTop: "10px",
+                }}
+              >
+                {assignedAreas.map(
+                  (area) => (
+                    <span
+                      key={area}
+                      className="risk-chip low"
+                    >
+                      {area}
+                    </span>
+                  ),
+                )}
+              </div>
+            ) : (
+              <p>
+                No specific area assignments are
+                currently stored for this account.
+              </p>
+            )}
+          </div>
+
+          {/* =================================================
+              AUTHORITY
+          ================================================= */}
+
+          <div
+            className="recommendation"
+            style={{
+              marginTop: "14px",
+            }}
+          >
+            <strong>
+              Authority scope
+            </strong>
 
             <p>
-              This account can access the official portal and publish verified
-              flood posture updates.
+              This authenticated account can access
+              the official portal and perform
+              authorized operational updates according
+              to its backend role and area assignment.
             </p>
           </div>
         </div>
