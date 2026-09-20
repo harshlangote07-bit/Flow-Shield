@@ -1,87 +1,144 @@
-import { ZONES } from "../data/mockData";
+import { useEffect } from "react";
+import {
+    MapContainer,
+    TileLayer,
+    GeoJSON,
+    useMap,
+} from "react-leaflet";
+import "leaflet/dist/leaflet.css";
 
-export default function MapCanvas({
-  selectedId,
-  onSelect,
-  compact = false,
-}) {
-  return (
-    <div className={`map-canvas ${compact ? "" : "map-page-canvas"}`}>
-      <div className="map-river" />
-      <div className="map-road" />
+import bengaluruZones from "../data/bengaluruZones.json";
 
-      <span
-        className="map-label"
-        style={{
-          left: "15%",
-          top: "20%",
-        }}
-      >
-        West quay
-      </span>
+function MapResizeFix() {
+    const map = useMap();
 
-      <span
-        className="map-label"
-        style={{
-          left: "67%",
-          top: "59%",
-        }}
-      >
-        Civic core
-      </span>
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            map.invalidateSize();
+        }, 100);
 
-      <span
-        className="map-label"
-        style={{
-          left: "23%",
-          top: "83%",
-        }}
-      >
-        South canal
-      </span>
+        return () => clearTimeout(timer);
+    }, [map]);
 
-      {ZONES.map((zone) => (
-        <button
-          key={zone.id}
-          type="button"
-          className={`zone ${zone.risk} ${
-            selectedId === zone.id ? "selected" : ""
-          }`}
-          style={{
-            left: zone.x,
-            top: zone.y,
-          }}
-          onClick={() => onSelect(zone.id)}
-          aria-label={`Select ${zone.name}`}
-          data-testid={`button-zone-${zone.id}`}
-        >
-          <span>
-            {zone.short} · {zone.score}
-          </span>
-        </button>
-      ))}
+    return null;
+}
 
-      <div className="map-overlay">
-        <strong>Storm cell: moving east</strong>
-        <span>Updated 2 minutes ago · radar + gauge blend</span>
+function getRiskLevel(riskScore) {
+    if (riskScore >= 70) return "high";
+    if (riskScore >= 40) return "medium";
+    return "low";
+}
+
+function getRiskColor(riskScore) {
+    const risk = getRiskLevel(riskScore);
+
+    switch (risk) {
+        case "high":
+            return "#bd4b46";
+
+        case "medium":
+            return "#c9991f";
+
+        case "low":
+            return "#0d746d";
+
+        default:
+            return "#819699";
+    }
+}
+
+function getZoneStyle(feature) {
+    const riskScore = Number(feature?.properties?.riskScore ?? 0);
+
+    return {
+        fillColor: getRiskColor(riskScore),
+        fillOpacity: 0.45,
+        color: "#ffffff",
+        weight: 2,
+        opacity: 1,
+    };
+}
+
+function onEachZone(feature, layer, onSelect) {
+    const name = feature?.properties?.name || "Bengaluru zone";
+    const score = Number(feature?.properties?.riskScore ?? 0);
+    const risk = getRiskLevel(score);
+    const zoneId = feature?.properties?.id;
+
+    layer.bindPopup(`
+    <div style="min-width: 180px;">
+      <strong style="font-size: 15px;">${name}</strong>
+      <div style="margin-top: 8px;">
+        Risk: <strong>${risk.toUpperCase()}</strong>
       </div>
-
-      <div className="map-legend">
-        <span className="legend-item">
-          <i className="legend-dot high" />
-          High
-        </span>
-
-        <span className="legend-item">
-          <i className="legend-dot medium" />
-          Watch
-        </span>
-
-        <span className="legend-item">
-          <i className="legend-dot low" />
-          Stable
-        </span>
+      <div>
+        Risk score: <strong>${score}</strong>
       </div>
     </div>
-  );
+  `);
+
+    layer.on({
+        mouseover: (event) => {
+            event.target.setStyle({
+                fillOpacity: 0.7,
+                weight: 3,
+            });
+        },
+
+        mouseout: (event) => {
+            event.target.setStyle(getZoneStyle(feature));
+        },
+        click: () => {
+            if (zoneId && onSelect) {
+                onSelect(zoneId);
+            }
+        },
+    });
+}
+
+export default function MapCanvas({ selectedId, onSelect }) {
+    return (
+        <div
+            style={{
+                height: "100%",
+                width: "100%",
+                minHeight: "560px",
+                borderRadius: "12px",
+                overflow: "hidden",
+            }}
+        >
+            <MapContainer
+                center={[12.9716, 77.5946]}
+                zoom={12}
+                minZoom={11}
+                maxZoom={16}
+                maxBounds={[
+                    [12.70, 77.35],
+                    [13.20, 77.85],
+                ]}
+                maxBoundsViscosity={1.0}
+                scrollWheelZoom={true}
+                zoomControl={true}
+                style={{
+                    height: "100%",
+                    width: "100%",
+                }}
+            >
+                <TileLayer
+                    attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+                    url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                />
+
+                <GeoJSON
+                    data={bengaluruZones}
+                    style={getZoneStyle}
+                    onEachFeature={(feature, layer) =>
+                        onEachZone(feature, layer, onSelect)
+                    }
+                />
+
+                <MapResizeFix />
+            </MapContainer>
+        </div>
+    );
 }
