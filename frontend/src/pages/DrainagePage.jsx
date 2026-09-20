@@ -16,6 +16,7 @@ import {
   getDrainage,
   getDrainageReports,
   getDrainageRisk,
+  submitPublicDrainageReport,
 } from "../services/api";
 
 /* =========================================================
@@ -53,13 +54,17 @@ function relativeTime(value) {
   }
 
   const diffMs = Date.now() - date.getTime();
+
   const minutes = Math.max(
     0,
     Math.floor(diffMs / 60000),
   );
 
   if (minutes < 1) return "Just now";
-  if (minutes < 60) return `${minutes}m ago`;
+
+  if (minutes < 60) {
+    return `${minutes}m ago`;
+  }
 
   const hours = Math.floor(minutes / 60);
 
@@ -97,7 +102,9 @@ function conditionTone(condition, status) {
 
 function formatCondition(condition, status) {
   if (status === "failed") return "Failed";
+
   if (status === "blocked") return "Blocked";
+
   if (status === "partially_blocked") {
     return "Partially blocked";
   }
@@ -134,9 +141,7 @@ function reportStatus(report) {
 }
 
 function reportTone(report) {
-  if (
-    report?.status === "rejected"
-  ) {
+  if (report?.status === "rejected") {
     return "high";
   }
 
@@ -172,6 +177,21 @@ export default function DrainagePage({
     useState("loading");
 
   const [error, setError] = useState("");
+
+  const [showReportForm, setShowReportForm] =
+    useState(false);
+
+  const [reportForm, setReportForm] = useState({
+    severity: "moderate",
+    blockagePercent: "",
+    description: "",
+  });
+
+  const [reportSubmitting, setReportSubmitting] =
+    useState(false);
+
+  const [reportMessage, setReportMessage] =
+    useState("");
 
   /* =========================================================
      LOAD AREAS
@@ -226,6 +246,70 @@ export default function DrainagePage({
   }, []);
 
   /* =========================================================
+     SUBMIT PUBLIC REPORT
+  ========================================================= */
+
+  async function submitReport(event) {
+    event.preventDefault();
+
+    if (!selectedAreaId) {
+      setReportMessage(
+        "Please select an area first.",
+      );
+      return;
+    }
+
+    if (!reportForm.description.trim()) {
+      setReportMessage(
+        "Please describe the issue.",
+      );
+      return;
+    }
+
+    try {
+      setReportSubmitting(true);
+      setReportMessage("");
+
+      await submitPublicDrainageReport(
+        selectedAreaId,
+        {
+          severity: reportForm.severity,
+          blockagePercent:
+            reportForm.blockagePercent === ""
+              ? null
+              : Number(
+                  reportForm.blockagePercent,
+                ),
+          description:
+            reportForm.description.trim(),
+        },
+      );
+
+      setReportForm({
+        severity: "moderate",
+        blockagePercent: "",
+        description: "",
+      });
+
+      setShowReportForm(false);
+      setTab("reports");
+
+      setReportMessage(
+        "Report submitted successfully.",
+      );
+
+      await loadDrainageData(selectedAreaId);
+    } catch (requestError) {
+      setReportMessage(
+        requestError?.message ||
+          "Unable to submit report.",
+      );
+    } finally {
+      setReportSubmitting(false);
+    }
+  }
+
+  /* =========================================================
      LOAD DRAINAGE DATA
   ========================================================= */
 
@@ -270,6 +354,7 @@ export default function DrainagePage({
 
       setAssets(nextAssets);
       setReports(nextReports);
+
       setMetrics({
         ...drainageData.metrics,
         ...riskData,
@@ -397,6 +482,7 @@ export default function DrainagePage({
               <div className="skeleton large" />
               <div className="skeleton" />
               <div className="skeleton" />
+
               <div className="loading-caption">
                 Connecting to drainage feeds…
               </div>
@@ -455,9 +541,14 @@ export default function DrainagePage({
             <button
               className="button button-primary"
               type="button"
+              onClick={() =>
+                setShowReportForm(true)
+              }
               data-testid="button-public-report"
             >
-              <MessageSquareWarning size={14} />
+              <MessageSquareWarning
+                size={14}
+              />
               Submit public report
             </button>
 
@@ -481,6 +572,138 @@ export default function DrainagePage({
           </div>
         }
       />
+
+      {/* =====================================================
+          PUBLIC REPORT FORM
+      ===================================================== */}
+
+      {showReportForm && (
+        <form
+          className="card"
+          onSubmit={submitReport}
+          style={{
+            marginTop: "12px",
+            padding: "16px",
+          }}
+        >
+          <h3 style={{ marginTop: 0 }}>
+            Report a drainage issue
+          </h3>
+
+          <div className="form-group">
+            <label>Severity</label>
+
+            <select
+              value={reportForm.severity}
+              onChange={(event) =>
+                setReportForm(
+                  (current) => ({
+                    ...current,
+                    severity:
+                      event.target.value,
+                  }),
+                )
+              }
+            >
+              <option value="low">
+                Low
+              </option>
+
+              <option value="moderate">
+                Moderate
+              </option>
+
+              <option value="high">
+                High
+              </option>
+
+              <option value="critical">
+                Critical
+              </option>
+            </select>
+          </div>
+
+          <div className="form-group">
+            <label>
+              Blockage percentage (optional)
+            </label>
+
+            <input
+              type="number"
+              min="0"
+              max="100"
+              value={
+                reportForm.blockagePercent
+              }
+              onChange={(event) =>
+                setReportForm(
+                  (current) => ({
+                    ...current,
+                    blockagePercent:
+                      event.target.value,
+                  }),
+                )
+              }
+              placeholder="e.g. 60"
+            />
+          </div>
+
+          <div className="form-group">
+            <label>Description</label>
+
+            <textarea
+              value={
+                reportForm.description
+              }
+              onChange={(event) =>
+                setReportForm(
+                  (current) => ({
+                    ...current,
+                    description:
+                      event.target.value,
+                  }),
+                )
+              }
+              placeholder="Describe the drainage issue..."
+              rows={4}
+              required
+            />
+          </div>
+
+          {reportMessage && (
+            <p>{reportMessage}</p>
+          )}
+
+          <div
+            style={{
+              display: "flex",
+              gap: "8px",
+              marginTop: "12px",
+            }}
+          >
+            <button
+              type="button"
+              className="button"
+              onClick={() => {
+                setShowReportForm(false);
+                setReportMessage("");
+              }}
+            >
+              Cancel
+            </button>
+
+            <button
+              type="submit"
+              className="button button-primary"
+              disabled={reportSubmitting}
+            >
+              {reportSubmitting
+                ? "Submitting..."
+                : "Submit report"}
+            </button>
+          </div>
+        </form>
+      )}
 
       {/* =====================================================
           AREA SELECTOR
@@ -513,13 +736,15 @@ export default function DrainagePage({
                 key={getAreaId(area)}
                 value={getAreaId(area)}
               >
-                {area.name || getAreaId(area)}
+                {area.name ||
+                  getAreaId(area)}
               </option>
             ))}
           </select>
 
           <p className="form-help">
-            Live drainage assets and reports for{" "}
+            Live drainage assets and reports
+            for{" "}
             {selectedArea?.name ||
               selectedAreaId ||
               "the selected area"}
@@ -537,7 +762,9 @@ export default function DrainagePage({
           <span>Assets online</span>
 
           <strong>
-            {metrics?.operationalAssets ?? 0}/
+            {metrics?.operationalAssets ??
+              0}
+            /
             {metrics?.totalAssets ?? 0}
           </strong>
 
@@ -759,8 +986,8 @@ export default function DrainagePage({
               </table>
             ) : (
               <div className="alert-detail-empty">
-                No active drainage assets are currently
-                stored for this area.
+                No active drainage assets are
+                currently stored for this area.
               </div>
             )}
           </div>
@@ -806,11 +1033,14 @@ export default function DrainagePage({
                           {report?.severity
                             ? `${report.severity} · `
                             : ""}
+
                           {formatTime(
                             report?.reportedAt ??
                               report?.createdAt,
                           )}
+
                           {" · "}
+
                           {reportStatus(
                             report,
                           )}
@@ -831,6 +1061,7 @@ export default function DrainagePage({
                           <ClipboardCheck
                             size={11}
                           />
+
                           {reportStatus(
                             report,
                           )}
@@ -842,8 +1073,8 @@ export default function DrainagePage({
               )
             ) : (
               <div className="alert-detail-empty">
-                No drainage reports have been stored for
-                this area.
+                No drainage reports have been
+                stored for this area.
               </div>
             )}
           </div>

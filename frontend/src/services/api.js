@@ -83,6 +83,13 @@ export function getDrainageReports(areaId) {
   return request(`/drainage/${areaId}/reports`);
 }
 
+export function submitPublicDrainageReport(areaId, data) {
+  return request(`/drainage/${areaId}/reports`, {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+}
+
 /* =========================
    WATER BODIES
 ========================= */

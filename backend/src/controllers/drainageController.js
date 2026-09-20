@@ -2,7 +2,8 @@ import {
     getAreaDrainage,
     getAreaDrainageRisk,
     getDrainageReports,
-    updateDrainageAsset
+    updateDrainageAsset,
+    createPublicDrainageReport
 } from "../services/drainageService.js";
 
 export async function getDrainage(req, res) {
@@ -99,6 +100,44 @@ export async function updateAsset(req, res) {
         return res.status(error.statusCode || 500).json({
             success: false,
             message: error.message || "Failed to update drainage asset."
+        });
+    }
+}
+
+export async function createPublicReport(req, res) {
+    try {
+        const { areaId } = req.params;
+
+        if (!areaId) {
+            return res.status(400).json({
+                success: false,
+                message: "Area ID is required."
+            });
+        }
+
+        const data = await createPublicDrainageReport(
+            areaId,
+            req.body
+        );
+
+        return res.status(201).json({
+            success: true,
+            message: "Public report submitted successfully.",
+            data
+        });
+    } catch (error) {
+        console.error(
+            "Public drainage report error:",
+            error
+        );
+
+        return res.status(
+            error.statusCode || 500
+        ).json({
+            success: false,
+            message:
+                error.message ||
+                "Failed to submit public report."
         });
     }
 }
