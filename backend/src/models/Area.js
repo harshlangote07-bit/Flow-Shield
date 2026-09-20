@@ -2,6 +2,7 @@ import mongoose from "mongoose";
 
 const areaSchema = new mongoose.Schema(
     {
+
         areaId: {
             type: String,
             required: true,
@@ -72,12 +73,29 @@ const areaSchema = new mongoose.Schema(
         isActive: {
             type: Boolean,
             default: true
-        }
+        },
+        population: {
+            type: Number,
+            default: 0,
+        },
+        populationSource: {
+            type: String,
+            default: "WorldPop",
+        },
+        populationYear: {
+            type: Number,
+            default: 2025,
+        },
+        populationUpdatedAt: {
+            type: Date,
+        },
     },
     {
         timestamps: true,
         collection: "areas"
-    }
+    },
+
+
 );
 
 areaSchema.index({
