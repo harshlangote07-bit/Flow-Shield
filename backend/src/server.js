@@ -17,6 +17,7 @@ import alertRoutes from "./routes/alertRoutes.js";
 import authRoutes from "./routes/authRoutes.js";
 
 import { startWeatherRefreshScheduler } from "./services/weatherRefreshService.js";
+import { startRiskRefreshScheduler } from "./services/riskRefreshService.js";
 
 dotenv.config();
 
@@ -74,7 +75,7 @@ const PORT = process.env.PORT || 5000;
 const startServer = async () => {
     await connectDB();
     startWeatherRefreshScheduler();
-
+    startRiskRefreshScheduler();
     app.listen(PORT, () => {
         console.log(`🚀 Flow Shield backend running on port ${PORT}`);
     });
