@@ -85,7 +85,8 @@ export async function updateAsset(req, res) {
 
         const data = await updateDrainageAsset(
             assetId,
-            req.body
+            req.body,
+            req.user
         );
 
         return res.status(200).json({

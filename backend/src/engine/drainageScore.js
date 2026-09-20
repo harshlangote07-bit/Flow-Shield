@@ -40,10 +40,12 @@ export function calculateDrainageScore(
      * 100% blockage -> 100 risk
      */
 
-    const blockageScore =
-        clamp(
-            drainage.blockagePercent || 0
-        );
+const blockageScore =
+    clamp(
+        drainage.networkWeightedBlockagePercent ??
+        drainage.blockagePercent ??
+        0
+    );
 
 
     /*
@@ -53,21 +55,21 @@ export function calculateDrainageScore(
      * system is closer to being overwhelmed.
      */
 
-    const capacityScore =
-        clamp(
-            drainage.capacityUtilizationPercent || 0
-        );
+const capacityScore =
+    clamp(
+        drainage.networkWeightedCapacityUtilizationPercent ??
+        drainage.capacityUtilizationPercent ??
+        0
+    );
 
 
     /*
      * 3. Physical condition of drainage
      */
 
-    const conditionScore =
-        getConditionScore(
-            drainage.condition
-        );
-
+const conditionScore =
+    drainage.networkWeightedConditionScore ??
+    getConditionScore(drainage.condition);
 
     /*
      * 4. Verified official reports

@@ -1,6 +1,6 @@
 import express from "express";
 import dotenv from "dotenv";
-
+import cors from "cors";
 import connectDB from "./config/db.js";
 import "./models/index.js";
 import riskRoutes from "./routes/riskRoutes.js";
@@ -14,12 +14,18 @@ import soilRoutes from "./routes/soilRoutes.js";
 import landUseRoutes from "./routes/landUseRoutes.js";
 import neighborRoutes from "./routes/neighborRoutes.js";
 import alertRoutes from "./routes/alertRoutes.js";
+import authRoutes from "./routes/authRoutes.js";
 
 import { startWeatherRefreshScheduler } from "./services/weatherRefreshService.js";
 
 dotenv.config();
 
 const app = express();
+
+app.use(cors({
+  origin: "http://localhost:5173",
+  credentials: true
+}));
 
 app.use(express.json());
 
@@ -43,6 +49,7 @@ app.use("/api/soil", soilRoutes);
 app.use("/api/land-use", landUseRoutes);
 app.use("/api/neighbors", neighborRoutes);
 app.use("/api/alerts", alertRoutes);
+app.use("/api/auth", authRoutes);
 
 // 404 handler
 app.use((req, res) => {

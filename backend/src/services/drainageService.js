@@ -1,7 +1,8 @@
 import {
     Area,
     DrainageAsset,
-    DrainageReport
+    DrainageReport,
+    User
 } from "../models/index.js";
 
 async function findArea(areaId) {
@@ -203,14 +204,13 @@ export async function getDrainageReports(areaId) {
         .lean();
 }
 
-export async function updateDrainageAsset(assetId, data) {
+export async function updateDrainageAsset(assetId, data, user) {
     const allowedFields = [
         "blockagePercent",
         "capacityUtilizationPercent",
         "condition",
         "status",
-        "lastInspectedAt",
-        "lastUpdatedBy"
+        "lastInspectedAt"
     ];
 
     const update = {};
@@ -221,6 +221,18 @@ export async function updateDrainageAsset(assetId, data) {
         }
     }
 
+    const officialUser = await User.findOne({
+        userId: user.userId,
+        isActive: true
+    }).select("_id");
+
+    if (!officialUser) {
+        const error = new Error("Authenticated user not found");
+        error.statusCode = 401;
+        throw error;
+    }
+
+    update.lastUpdatedBy = officialUser._id;
     update.lastUpdatedAt = new Date();
 
     const asset = await DrainageAsset.findOneAndUpdate(

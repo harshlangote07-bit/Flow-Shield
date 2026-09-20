@@ -36,6 +36,472 @@ async function findArea(areaId) {
 }
 
 
+function calculateNetworkImportance(assets) {
+    if (!assets || assets.length === 0) {
+        return [];
+    }
+
+    /*
+     * ---------------------------------------------------------
+     * Build asset lookup.
+     *
+     * We support both MongoDB ObjectId references and
+     * assetId references.
+     * ---------------------------------------------------------
+     */
+    const assetMap = new Map();
+
+    for (const asset of assets) {
+        assetMap.set(String(asset._id), asset);
+        assetMap.set(String(asset.assetId), asset);
+    }
+
+
+    function getReferencedAssetId(reference) {
+        if (!reference) {
+            return null;
+        }
+
+        if (typeof reference === "string") {
+            return reference;
+        }
+
+        if (reference._id) {
+            return String(reference._id);
+        }
+
+        if (reference.assetId) {
+            return String(reference.assetId);
+        }
+
+        return String(reference);
+    }
+
+
+    function getConnectedAssets(asset, direction) {
+        const references =
+            direction === "upstream"
+                ? asset.upstreamAssets || []
+                : asset.downstreamAssets || [];
+
+        const connected = [];
+
+        for (const reference of references) {
+            const referenceId =
+                getReferencedAssetId(reference);
+
+            if (!referenceId) {
+                continue;
+            }
+
+            const connectedAsset =
+                assetMap.get(referenceId);
+
+            if (connectedAsset) {
+                connected.push(connectedAsset);
+            }
+        }
+
+        return connected;
+    }
+
+
+    /*
+     * ---------------------------------------------------------
+     * Count reachable downstream assets.
+     *
+     * Direct downstream assets matter more than distant ones.
+     * ---------------------------------------------------------
+     */
+    function countDownstreamReach(asset) {
+        const visited = new Set();
+        const queue = [];
+
+        const directDownstream =
+            getConnectedAssets(
+                asset,
+                "downstream"
+            );
+
+        for (const downstream of directDownstream) {
+            queue.push({
+                asset: downstream,
+                depth: 1
+            });
+        }
+
+        let weightedReach = 0;
+
+        while (queue.length > 0) {
+            const current =
+                queue.shift();
+
+            const currentId =
+                String(current.asset._id);
+
+            if (visited.has(currentId)) {
+                continue;
+            }
+
+            visited.add(currentId);
+
+            /*
+             * Nearby downstream assets have more influence.
+             */
+            const depthWeight =
+                Math.pow(
+                    0.70,
+                    current.depth - 1
+                );
+
+            weightedReach += depthWeight;
+
+            const nextAssets =
+                getConnectedAssets(
+                    current.asset,
+                    "downstream"
+                );
+
+            for (const nextAsset of nextAssets) {
+                const nextId =
+                    String(nextAsset._id);
+
+                if (!visited.has(nextId)) {
+                    queue.push({
+                        asset: nextAsset,
+                        depth:
+                            current.depth + 1
+                    });
+                }
+            }
+        }
+
+        return weightedReach;
+    }
+
+
+    /*
+     * ---------------------------------------------------------
+     * Count reachable upstream assets.
+     *
+     * Upstream connectivity matters, but less than downstream
+     * dependency because blockage can affect everything
+     * downstream of the asset.
+     * ---------------------------------------------------------
+     */
+    function countUpstreamReach(asset) {
+        const visited = new Set();
+        const queue = [];
+
+        const directUpstream =
+            getConnectedAssets(
+                asset,
+                "upstream"
+            );
+
+        for (const upstream of directUpstream) {
+            queue.push({
+                asset: upstream,
+                depth: 1
+            });
+        }
+
+        let weightedReach = 0;
+
+        while (queue.length > 0) {
+            const current =
+                queue.shift();
+
+            const currentId =
+                String(current.asset._id);
+
+            if (visited.has(currentId)) {
+                continue;
+            }
+
+            visited.add(currentId);
+
+            const depthWeight =
+                Math.pow(
+                    0.50,
+                    current.depth - 1
+                );
+
+            weightedReach += depthWeight;
+
+            const nextAssets =
+                getConnectedAssets(
+                    current.asset,
+                    "upstream"
+                );
+
+            for (const nextAsset of nextAssets) {
+                const nextId =
+                    String(nextAsset._id);
+
+                if (!visited.has(nextId)) {
+                    queue.push({
+                        asset: nextAsset,
+                        depth:
+                            current.depth + 1
+                    });
+                }
+            }
+        }
+
+        return weightedReach;
+    }
+
+
+    /*
+     * ---------------------------------------------------------
+     * Determine the size of the connected network around
+     * each asset.
+     *
+     * This is important because we DON'T want a 2- or 3-pipe
+     * network automatically producing importance = 100.
+     * ---------------------------------------------------------
+     */
+    function countConnectedNetwork(asset) {
+        const visited = new Set();
+        const queue = [asset];
+
+        while (queue.length > 0) {
+            const current =
+                queue.shift();
+
+            const currentId =
+                String(current._id);
+
+            if (visited.has(currentId)) {
+                continue;
+            }
+
+            visited.add(currentId);
+
+            const upstream =
+                getConnectedAssets(
+                    current,
+                    "upstream"
+                );
+
+            const downstream =
+                getConnectedAssets(
+                    current,
+                    "downstream"
+                );
+
+            for (const nextAsset of [
+                ...upstream,
+                ...downstream
+            ]) {
+                const nextId =
+                    String(nextAsset._id);
+
+                if (!visited.has(nextId)) {
+                    queue.push(nextAsset);
+                }
+            }
+        }
+
+        return visited.size;
+    }
+
+
+    /*
+     * ---------------------------------------------------------
+     * Calculate raw importance for each asset.
+     * ---------------------------------------------------------
+     */
+    const rawImportance =
+        assets.map(asset => {
+            const directUpstream =
+                getConnectedAssets(
+                    asset,
+                    "upstream"
+                ).length;
+
+            const directDownstream =
+                getConnectedAssets(
+                    asset,
+                    "downstream"
+                ).length;
+
+            const upstreamReach =
+                countUpstreamReach(asset);
+
+            const downstreamReach =
+                countDownstreamReach(asset);
+
+            const connectedNetworkSize =
+                countConnectedNetwork(asset);
+
+
+            /*
+             * A trunk is important, but trunk status alone
+             * should NOT make an asset 100.
+             */
+            const trunkBonus =
+                asset.isTrunk === true
+                    ? 2
+                    : 0;
+
+
+            /*
+             * An asset with meaningful connectivity on both
+             * sides acts like a bridge in the network.
+             */
+            const bridgeBonus =
+                directUpstream > 0 &&
+                directDownstream > 0
+                    ? 2
+                    : 0;
+
+
+            /*
+             * Base centrality.
+             *
+             * Downstream dependency gets the largest influence.
+             */
+            const rawScore =
+                1 +
+                directUpstream * 1.5 +
+                directDownstream * 2.0 +
+                downstreamReach * 2.5 +
+                upstreamReach * 0.75 +
+                trunkBonus +
+                bridgeBonus;
+
+
+            return {
+                asset,
+
+                rawScore,
+
+                directUpstream,
+
+                directDownstream,
+
+                upstreamReach,
+
+                downstreamReach,
+
+                connectedNetworkSize
+            };
+        });
+
+
+    /*
+     * ---------------------------------------------------------
+     * Normalize according to network size.
+     *
+     * IMPORTANT:
+     *
+     * 1-3 connected assets:
+     *     capped at 70
+     *
+     * 4 connected assets:
+     *     capped at 85
+     *
+     * 5+ connected assets:
+     *     can reach 100
+     *
+     * This prevents a tiny network from producing a misleading
+     * "100 importance" value.
+     * ---------------------------------------------------------
+     */
+    return rawImportance.map(item => {
+        const networkSize =
+            item.connectedNetworkSize;
+
+        let networkImportance;
+
+
+        /*
+         * Small network.
+         */
+        if (networkSize <= 3) {
+            networkImportance =
+                Math.min(
+                    70,
+                    item.rawScore * 12
+                );
+        }
+
+
+        /*
+         * Four connected assets.
+         */
+        else if (networkSize === 4) {
+            networkImportance =
+                Math.min(
+                    85,
+                    item.rawScore * 12
+                );
+        }
+
+
+        /*
+         * Five or more connected assets.
+         *
+         * Only genuinely central assets should approach 100.
+         */
+        else {
+            networkImportance =
+                Math.min(
+                    100,
+                    item.rawScore * 12
+                );
+        }
+
+
+        /*
+         * Minimum value prevents a completely isolated or
+         * weakly connected pipe from becoming zero.
+         */
+        networkImportance =
+            Math.max(
+                10,
+                networkImportance
+            );
+
+
+        return {
+            ...item.asset,
+
+            networkImportance:
+                Number(
+                    networkImportance.toFixed(2)
+                ),
+
+            networkMetrics: {
+                directUpstream:
+                    item.directUpstream,
+
+                directDownstream:
+                    item.directDownstream,
+
+                upstreamReach:
+                    Number(
+                        item.upstreamReach.toFixed(2)
+                    ),
+
+                downstreamReach:
+                    Number(
+                        item.downstreamReach.toFixed(2)
+                    ),
+
+                connectedNetworkSize:
+                    item.connectedNetworkSize,
+
+                isTrunk:
+                    item.asset.isTrunk === true
+            }
+        };
+    });
+}
+
+
 function buildDrainageInput(assets) {
     const total = assets.length;
 
@@ -49,63 +515,129 @@ function buildDrainageInput(assets) {
             criticalAssets: 0,
             trunkAssets: 0,
             blockedTrunkAssets: 0,
+
             averageBlockagePercent: 0,
             averageCapacityUtilizationPercent: 0,
             maximumBlockagePercent: 0,
+
+            networkWeightedBlockagePercent: 0,
+            networkWeightedCapacityUtilizationPercent: 0,
+            networkWeightedConditionScore: 0,
+
+            averageNetworkImportance: 0,
+            maximumNetworkImportance: 0,
+
             drainageScore: 0,
+
             assets: []
         };
     }
 
-    const blocked = assets.filter(
-        asset =>
-            asset.status === "blocked" ||
-            Number(asset.blockagePercent || 0) >= 80
-    );
 
-    const partiallyBlocked = assets.filter(
-        asset =>
-            asset.status === "partially_blocked" ||
-            (
-                Number(asset.blockagePercent || 0) >= 30 &&
-                Number(asset.blockagePercent || 0) < 80
-            )
-    );
+    /*
+     * ---------------------------------------------------------
+     * STEP 1
+     *
+     * Calculate network importance for every drainage asset.
+     * ---------------------------------------------------------
+     */
+    const networkAssets =
+        calculateNetworkImportance(assets);
 
-    const failed = assets.filter(
-        asset => asset.status === "failed"
-    );
 
-    const critical = assets.filter(
-        asset =>
-            asset.condition === "critical" ||
-            asset.status === "failed"
-    );
+    /*
+     * ---------------------------------------------------------
+     * STEP 2
+     *
+     * Preserve your existing asset classifications.
+     * ---------------------------------------------------------
+     */
 
-    const trunks = assets.filter(
-        asset => asset.isTrunk === true
-    );
+    const blocked =
+        networkAssets.filter(
+            asset =>
+                asset.status === "blocked" ||
+                Number(
+                    asset.blockagePercent || 0
+                ) >= 80
+        );
 
-    const blockedTrunks = trunks.filter(
-        asset =>
-            asset.status === "blocked" ||
-            Number(asset.blockagePercent || 0) >= 70
-    );
 
-    const operational = assets.filter(
-        asset => asset.status === "operational"
-    );
+    const partiallyBlocked =
+        networkAssets.filter(
+            asset =>
+                asset.status === "partially_blocked" ||
+                (
+                    Number(
+                        asset.blockagePercent || 0
+                    ) >= 30 &&
+                    Number(
+                        asset.blockagePercent || 0
+                    ) < 80
+                )
+        );
+
+
+    const failed =
+        networkAssets.filter(
+            asset =>
+                asset.status === "failed"
+        );
+
+
+    const critical =
+        networkAssets.filter(
+            asset =>
+                asset.condition === "critical" ||
+                asset.status === "failed"
+        );
+
+
+    const trunks =
+        networkAssets.filter(
+            asset =>
+                asset.isTrunk === true
+        );
+
+
+    const blockedTrunks =
+        trunks.filter(
+            asset =>
+                asset.status === "blocked" ||
+                Number(
+                    asset.blockagePercent || 0
+                ) >= 70
+        );
+
+
+    const operational =
+        networkAssets.filter(
+            asset =>
+                asset.status === "operational"
+        );
+
+
+    /*
+     * ---------------------------------------------------------
+     * STEP 3
+     *
+     * Preserve the original averages.
+     * ---------------------------------------------------------
+     */
 
     const averageBlockage =
-        assets.reduce(
+        networkAssets.reduce(
             (sum, asset) =>
                 sum +
-                Number(asset.blockagePercent || 0),
+                Number(
+                    asset.blockagePercent || 0
+                ),
             0
         ) / total;
 
+
     const averageUtilization =
-        assets.reduce(
+        networkAssets.reduce(
             (sum, asset) =>
                 sum +
                 Number(
@@ -114,45 +646,360 @@ function buildDrainageInput(assets) {
             0
         ) / total;
 
+
     const maximumBlockage =
         Math.max(
-            ...assets.map(asset =>
-                Number(asset.blockagePercent || 0)
+            ...networkAssets.map(
+                asset =>
+                    Number(
+                        asset.blockagePercent || 0
+                    )
             )
         );
 
-    return {
-        totalAssets: total,
-        blockedAssets: blocked.length,
-        partiallyBlockedAssets:
-            partiallyBlocked.length,
-        operationalAssets: operational.length,
-        failedAssets: failed.length,
-        criticalAssets: critical.length,
-        trunkAssets: trunks.length,
-        blockedTrunkAssets: blockedTrunks.length,
-        averageBlockagePercent: averageBlockage,
-        averageCapacityUtilizationPercent:
-            averageUtilization,
-        maximumBlockagePercent: maximumBlockage,
 
-        drainageScore: Math.min(
+    /*
+     * ---------------------------------------------------------
+     * STEP 4
+     *
+     * Calculate total network importance.
+     * ---------------------------------------------------------
+     */
+
+    const totalImportance =
+        networkAssets.reduce(
+            (sum, asset) =>
+                sum +
+                Number(
+                    asset.networkImportance || 0
+                ),
+            0
+        );
+
+
+    /*
+     * ---------------------------------------------------------
+     * STEP 5
+     *
+     * Network-weighted blockage.
+     *
+     * A central pipe therefore matters more than an isolated
+     * pipe with the same blockage percentage.
+     * ---------------------------------------------------------
+     */
+
+    const weightedBlockage =
+        networkAssets.reduce(
+            (sum, asset) =>
+                sum +
+                (
+                    Number(
+                        asset.blockagePercent || 0
+                    ) *
+                    Number(
+                        asset.networkImportance || 0
+                    )
+                ),
+            0
+        );
+
+
+    const networkWeightedBlockagePercent =
+        totalImportance > 0
+            ? weightedBlockage /
+              totalImportance
+            : averageBlockage;
+
+
+    /*
+     * ---------------------------------------------------------
+     * STEP 6
+     *
+     * Network-weighted capacity utilization.
+     * ---------------------------------------------------------
+     */
+
+    const weightedUtilization =
+        networkAssets.reduce(
+            (sum, asset) =>
+                sum +
+                (
+                    Number(
+                        asset.capacityUtilizationPercent || 0
+                    ) *
+                    Number(
+                        asset.networkImportance || 0
+                    )
+                ),
+            0
+        );
+
+
+    const networkWeightedCapacityUtilizationPercent =
+        totalImportance > 0
+            ? weightedUtilization /
+              totalImportance
+            : averageUtilization;
+
+
+    /*
+     * ---------------------------------------------------------
+     * STEP 7
+     *
+     * Network-weighted condition.
+     * ---------------------------------------------------------
+     */
+
+    function getConditionScore(condition) {
+        switch (
+            String(condition || "").toLowerCase()
+        ) {
+            case "excellent":
+                return 0;
+
+            case "good":
+                return 20;
+
+            case "fair":
+                return 50;
+
+            case "poor":
+                return 75;
+
+            case "critical":
+                return 100;
+
+            default:
+                return 50;
+        }
+    }
+
+
+    const weightedCondition =
+        networkAssets.reduce(
+            (sum, asset) =>
+                sum +
+                (
+                    getConditionScore(
+                        asset.condition
+                    ) *
+                    Number(
+                        asset.networkImportance || 0
+                    )
+                ),
+            0
+        );
+
+
+    const networkWeightedConditionScore =
+        totalImportance > 0
+            ? weightedCondition /
+              totalImportance
+            : 50;
+
+
+    /*
+     * ---------------------------------------------------------
+     * STEP 8
+     *
+     * Existing structural drainage score.
+     *
+     * We preserve the old classification behavior.
+     * ---------------------------------------------------------
+     */
+
+    const blockedRatio =
+        blocked.length / total;
+
+
+    const partialRatio =
+        partiallyBlocked.length / total;
+
+
+    const trunkRatio =
+        trunks.length === 0
+            ? 0
+            : blockedTrunks.length /
+              trunks.length;
+
+
+    const structuralDrainageScore =
+        (
+            blockedRatio * 60 +
+            partialRatio * 25 +
+            trunkRatio * 15
+        );
+
+
+    /*
+     * ---------------------------------------------------------
+     * STEP 9
+     *
+     * Network influence.
+     *
+     * IMPORTANT:
+     *
+     * Network importance is NOT allowed to dominate the
+     * drainage score.
+     *
+     * This is deliberately a refinement rather than a
+     * "flood guaranteed" multiplier.
+     * ---------------------------------------------------------
+     */
+
+    const networkBlockageInfluence =
+        Math.min(
+            100,
+            networkWeightedBlockagePercent
+        );
+
+
+    const networkCapacityInfluence =
+        Math.min(
+            100,
+            networkWeightedCapacityUtilizationPercent
+        );
+
+
+    const networkConditionInfluence =
+        Math.min(
+            100,
+            networkWeightedConditionScore
+        );
+
+
+    /*
+     * ---------------------------------------------------------
+     * STEP 10
+     *
+     * Final network-aware drainage score.
+     *
+     * 70% = existing structural drainage state
+     * 15% = network-weighted blockage
+     * 10% = network-weighted capacity
+     * 5%  = network-weighted condition
+     *
+     * Therefore network importance can influence the result,
+     * but it cannot independently cause a huge jump.
+     * ---------------------------------------------------------
+     */
+
+    const drainageScore =
+        Math.min(
             100,
             (
-                (blocked.length / total) * 60 +
-                (partiallyBlocked.length / total) * 25 +
-                (
-                    trunks.length === 0
-                        ? 0
-                        : (blockedTrunks.length / trunks.length) * 15
-                )
+                structuralDrainageScore * 0.70 +
+                networkBlockageInfluence * 0.15 +
+                networkCapacityInfluence * 0.10 +
+                networkConditionInfluence * 0.05
             )
-        ),
+        );
 
-        assets
+
+    /*
+     * ---------------------------------------------------------
+     * STEP 11
+     *
+     * Aggregate network statistics.
+     * ---------------------------------------------------------
+     */
+
+    const averageNetworkImportance =
+        totalImportance / total;
+
+
+    const maximumNetworkImportance =
+        Math.max(
+            ...networkAssets.map(
+                asset =>
+                    Number(
+                        asset.networkImportance || 0
+                    )
+            )
+        );
+
+
+    /*
+     * ---------------------------------------------------------
+     * STEP 12
+     *
+     * Return existing fields PLUS network information.
+     * ---------------------------------------------------------
+     */
+
+    return {
+        totalAssets: total,
+
+        blockedAssets:
+            blocked.length,
+
+        partiallyBlockedAssets:
+            partiallyBlocked.length,
+
+        operationalAssets:
+            operational.length,
+
+        failedAssets:
+            failed.length,
+
+        criticalAssets:
+            critical.length,
+
+        trunkAssets:
+            trunks.length,
+
+        blockedTrunkAssets:
+            blockedTrunks.length,
+
+        averageBlockagePercent:
+            Number(
+                averageBlockage.toFixed(2)
+            ),
+
+        averageCapacityUtilizationPercent:
+            Number(
+                averageUtilization.toFixed(2)
+            ),
+
+        maximumBlockagePercent:
+            Number(
+                maximumBlockage.toFixed(2)
+            ),
+
+        networkWeightedBlockagePercent:
+            Number(
+                networkWeightedBlockagePercent.toFixed(2)
+            ),
+
+        networkWeightedCapacityUtilizationPercent:
+            Number(
+                networkWeightedCapacityUtilizationPercent.toFixed(2)
+            ),
+
+        networkWeightedConditionScore:
+            Number(
+                networkWeightedConditionScore.toFixed(2)
+            ),
+
+        averageNetworkImportance:
+            Number(
+                averageNetworkImportance.toFixed(2)
+            ),
+
+        maximumNetworkImportance:
+            Number(
+                maximumNetworkImportance.toFixed(2)
+            ),
+
+        drainageScore:
+            Number(
+                drainageScore.toFixed(2)
+            ),
+
+        assets:
+            networkAssets
     };
 }
-
 
 /*
  * Convert MongoDB water-body documents into the
